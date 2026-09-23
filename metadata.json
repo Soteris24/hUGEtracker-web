@@ -1,0 +1,6 @@
+{
+  "name": "hUGETracker Web",
+  "description": "A full-featured web port of hUGETracker for composing Game Boy music, loading and saving .uge files, and exporting to GBDK C code.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
