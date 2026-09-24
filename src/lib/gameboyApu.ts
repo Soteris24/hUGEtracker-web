@@ -45,6 +45,20 @@ export class GameBoyApu {
   private freqClk = 0;
   private freq4Clk = 0;
 
+  // ── Real Oscilloscope Ring Buffers ──────────────────────────────────────────
+  // Each channel captures actual synthesized sample output at the audio sample rate.
+  // The canvas reads a snapshot of these buffers every animation frame.
+  public static readonly OSC_BUF_SIZE = 2048;
+  public oscBuf: Float32Array[] = [
+    new Float32Array(GameBoyApu.OSC_BUF_SIZE),
+    new Float32Array(GameBoyApu.OSC_BUF_SIZE),
+    new Float32Array(GameBoyApu.OSC_BUF_SIZE),
+    new Float32Array(GameBoyApu.OSC_BUF_SIZE),
+  ];
+  public oscWritePos = 0; // shared write head (all channels advance together)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+
   constructor() {
     this.reset();
   }
@@ -436,6 +450,16 @@ export class GameBoyApu {
       if (term & 0x80) ls4 = out;
     }
 
+    // ── Write per-channel samples into oscilloscope ring buffers ──
+    // Normalize each channel independently to [-1, +1] (max amplitude = 127)
+    const pos = this.oscWritePos;
+    this.oscBuf[0][pos] = (ls1 !== 0 || rs1 !== 0) ? (ls1 + rs1) / 254 : 0;
+    this.oscBuf[1][pos] = (ls2 !== 0 || rs2 !== 0) ? (ls2 + rs2) / 254 : 0;
+    this.oscBuf[2][pos] = (ls3 !== 0 || rs3 !== 0) ? (ls3 + rs3) / 254 : 0;
+    this.oscBuf[3][pos] = (ls4 !== 0 || rs4 !== 0) ? (ls4 + rs4) / 254 : 0;
+    this.oscWritePos = (pos + 1) & (GameBoyApu.OSC_BUF_SIZE - 1);
+    // ──────────────────────────────────────────────────────────────
+
     // Master Volume Scaling (NR50 $FF24)
     const volL = ((this.regs[0x14] >> 4) & 0x07) + 1;
     const volR = (this.regs[0x14] & 0x07) + 1;
@@ -448,5 +472,21 @@ export class GameBoyApu {
       left: Math.max(-1.0, Math.min(1.0, totalL / 512.0)),
       right: Math.max(-1.0, Math.min(1.0, totalR / 512.0)),
     };
+  }
+
+  /**
+   * Returns a linear snapshot of the oscilloscope ring buffer for the given channel,
+   * starting from the oldest sample so it reads left-to-right in time.
+   * @param ch - Channel index (0–3)
+   * @param length - How many samples to snapshot (defaults to OSC_BUF_SIZE)
+   */
+  public getOscSnapshot(ch: number, length = GameBoyApu.OSC_BUF_SIZE): Float32Array {
+    const buf = this.oscBuf[ch];
+    const snap = new Float32Array(length);
+    const start = (this.oscWritePos - length + GameBoyApu.OSC_BUF_SIZE) & (GameBoyApu.OSC_BUF_SIZE - 1);
+    for (let i = 0; i < length; i++) {
+      snap[i] = buf[(start + i) & (GameBoyApu.OSC_BUF_SIZE - 1)];
+    }
+    return snap;
   }
 }

@@ -34,6 +34,7 @@ import {
   createEmptyPattern,
 } from '../types/uge';
 import { audioEngine, PlaybackState } from '../lib/audioEngine';
+import { GameBoyApu } from '../lib/gameboyApu';
 import { PWAInstallButton } from './PWAInstallButton';
 import { EFFECT_INFO } from './EffectEditorModal';
 
@@ -213,6 +214,7 @@ export const FurnaceTrackerGui: React.FC<FurnaceTrackerGuiProps> = ({
         if (!ctx) return;
         const width = canvas.width;
         const height = canvas.height;
+        const cy = height / 2;
 
         // Furnace Oscilloscope background
         ctx.fillStyle = isLight ? '#1a202c' : '#0e1117';
@@ -222,133 +224,86 @@ export const FurnaceTrackerGui: React.FC<FurnaceTrackerGuiProps> = ({
         ctx.strokeStyle = isLight ? '#2d3748' : '#1e2533';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, height / 2);
-        ctx.lineTo(width, height / 2);
+        ctx.moveTo(0, cy);
+        ctx.lineTo(width, cy);
         ctx.stroke();
-
-        const meter = meters[ch] || 0;
-        const hasSolo = soloChannels.some(Boolean);
-        const isAudible = hasSolo ? (soloChannels[ch] && !mutedChannels[ch]) : !mutedChannels[ch];
-        const apu = audioEngine.apu;
-        const chSound = apu ? apu.snd[ch] : null;
-        const isSoundActive = isAudible && ((playbackState.isPlaying && meter > 0.015) || (chSound?.enable && chSound.vol > 0));
 
         // Channel colors matching Furnace theme
         const colors = isLight
           ? ['#0284c7', '#16a34a', '#d97706', '#9333ea']
           : ['#38bdf8', '#4ade80', '#facc15', '#c084fc'];
 
-        if (isSoundActive && apu) {
-          ctx.strokeStyle = colors[ch];
-          ctx.lineWidth = 1.75;
-          ctx.beginPath();
+        const apu = audioEngine.apu;
+        if (!apu) return;
 
-          const amp = Math.min(1, Math.max(0.25, ((chSound?.vol || 12) / 15) * 0.85 + meter * 0.35)) * (height * 0.42);
+        const hasSolo = soloChannels.some(Boolean);
+        const isAudible = hasSolo ? (soloChannels[ch] && !mutedChannels[ch]) : !mutedChannels[ch];
+        const chSnd = apu.snd[ch];
+        const isActive = isAudible && chSnd.enable && !chSnd.channelOff;
 
-          if (ch === 0 || ch === 1) {
-            // Pulse 1 & Pulse 2: Actual Game Boy Hardware Duty Cycle (Stationary & Centered)
-            const regIdx = ch === 0 ? 1 : 6;
-            const dutyBits = (apu.regs[regIdx] >> 6) & 3;
-            const dutyRatios = [0.125, 0.25, 0.50, 0.75];
-            const dutyRatio = dutyRatios[dutyBits] ?? 0.5;
-
-            const numPeriods = 3;
-            let prevHigh: boolean | null = null;
-            for (let x = 0; x < width; x++) {
-              const normX = x / width;
-              const cyclePhase = (normX * numPeriods) % 1;
-              const isHigh = cyclePhase >= (1 - dutyRatio) / 2 && cyclePhase < (1 + dutyRatio) / 2;
-              const y = height / 2 + (isHigh ? -amp : amp);
-
-              if (x === 0) {
-                ctx.moveTo(x, y);
-              } else {
-                if (prevHigh !== null && prevHigh !== isHigh) {
-                  const prevY = height / 2 + (prevHigh ? -amp : amp);
-                  ctx.lineTo(x, prevY);
-                  ctx.lineTo(x, y);
-                } else {
-                  ctx.lineTo(x, y);
-                }
-              }
-              prevHigh = isHigh;
-            }
-            ctx.stroke();
-
-          } else if (ch === 2) {
-            // Wave Synthesizer: Actual 32 4-bit Samples from APU Wave RAM (Stationary & Centered)
-            const waveSamples: number[] = [];
-            let hasSamples = false;
-            for (let b = 0; b < 16; b++) {
-              const byte = apu.regs[0x20 + b] || 0;
-              const hi = (byte >> 4) & 0x0f;
-              const lo = byte & 0x0f;
-              waveSamples.push(hi, lo);
-              if (hi > 0 || lo > 0) hasSamples = true;
-            }
-            const activeSamples = hasSamples ? waveSamples : (song.waves[selectedWaveIndex] || Array(32).fill(8));
-
-            const numPeriods = 2;
-            let prevSampleIdx = -1;
-            for (let x = 0; x < width; x++) {
-              const normX = x / width;
-              const cyclePhase = (normX * numPeriods) % 1;
-              const sampleIdx = Math.floor(cyclePhase * 32);
-              const sampleVal = activeSamples[sampleIdx] ?? 8;
-              const normVal = (sampleVal - 7.5) / 7.5;
-              const y = height / 2 - normVal * amp;
-
-              if (x === 0) {
-                ctx.moveTo(x, y);
-              } else {
-                if (prevSampleIdx !== -1 && prevSampleIdx !== sampleIdx) {
-                  const prevVal = (activeSamples[prevSampleIdx] - 7.5) / 7.5;
-                  const prevY = height / 2 - prevVal * amp;
-                  ctx.lineTo(x, prevY);
-                  ctx.lineTo(x, y);
-                } else {
-                  ctx.lineTo(x, y);
-                }
-              }
-              prevSampleIdx = sampleIdx;
-            }
-            ctx.stroke();
-
-          } else {
-            // Noise: Authentic Pseudo-Random Noise from LFSR (Stationary & Centered)
-            const is7bit = ((apu.regs[0x12] || 0) & 0x08) !== 0;
-
-            let prevNoiseBit: number | null = null;
-            for (let x = 0; x < width; x++) {
-              const step = Math.floor((x / width) * 48);
-              const noiseBit = (step % 2 === 0 ? 1 : -1) * (Math.sin(step * 12.9898 + (is7bit ? 7 : 15)) > 0 ? 1 : -1);
-              const y = height / 2 + noiseBit * amp * 0.9;
-
-              if (x === 0) {
-                ctx.moveTo(x, y);
-              } else {
-                if (prevNoiseBit !== null && prevNoiseBit !== noiseBit) {
-                  const prevY = height / 2 + prevNoiseBit * amp * 0.9;
-                  ctx.lineTo(x, prevY);
-                  ctx.lineTo(x, y);
-                } else {
-                  ctx.lineTo(x, y);
-                }
-              }
-              prevNoiseBit = noiseBit;
-            }
-            ctx.stroke();
-          }
-
-        } else {
-          // Idle line
+        if (!isActive) {
           ctx.strokeStyle = isLight ? '#4a5568' : '#2d3748';
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.moveTo(0, height / 2);
-          ctx.lineTo(width, height / 2);
+          ctx.moveTo(0, cy);
+          ctx.lineTo(width, cy);
           ctx.stroke();
+          return;
         }
+
+        // ── Get real samples from ring buffer ──
+        const sampleRate = 44100;
+        let samplesPerPeriod = 128;
+        if (ch === 0 || ch === 1) {
+          const freq11bit = chSnd.freq;
+          if (freq11bit < 2047) {
+            const gbCyclesPerPeriod = (2048 - freq11bit) * 8;
+            samplesPerPeriod = Math.round(gbCyclesPerPeriod / (8388608 / sampleRate));
+          }
+        } else if (ch === 2) {
+          const freq11bit = chSnd.freq;
+          if (freq11bit < 2047) {
+            const gbCyclesPerPeriod = (2048 - freq11bit) * 32;
+            samplesPerPeriod = Math.round(gbCyclesPerPeriod / (8388608 / sampleRate));
+          }
+        } else {
+          samplesPerPeriod = Math.round(sampleRate * 0.003);
+        }
+
+        const windowSamples = Math.min(
+          GameBoyApu.OSC_BUF_SIZE >> 1,
+          Math.max(64, Math.round(samplesPerPeriod * 2.5))
+        );
+
+        const raw = apu.getOscSnapshot(ch, Math.min(GameBoyApu.OSC_BUF_SIZE, windowSamples + 64));
+        const rawLen = raw.length;
+
+        // ── Trigger: find first rising zero-crossing ──
+        let triggerOffset = 0;
+        const searchStart = Math.min(32, rawLen >> 2);
+        const searchEnd = Math.min(rawLen - windowSamples, rawLen - 1);
+        for (let i = searchStart; i < searchEnd; i++) {
+          if (raw[i] <= 0 && raw[i + 1] > 0) {
+            triggerOffset = i + 1;
+            break;
+          }
+        }
+
+        // ── Draw waveform ──
+        ctx.strokeStyle = colors[ch];
+        ctx.lineWidth = 1.75;
+        ctx.beginPath();
+
+        const scaleY = cy * 0.90;
+
+        for (let x = 0; x < width; x++) {
+          const sampleIdx = triggerOffset + Math.round((x / (width - 1)) * (windowSamples - 1));
+          const sample = sampleIdx < rawLen ? raw[sampleIdx] : 0;
+          const y = cy - sample * scaleY;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
       });
       animId = requestAnimationFrame(drawScopes);
     };
