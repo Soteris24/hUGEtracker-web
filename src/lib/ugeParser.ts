@@ -106,9 +106,15 @@ export function parseUgeBuffer(data: ArrayBuffer | Uint8Array): TSong {
   const artist = r.readShortString();
   const comment = r.readShortString();
 
-  const dutyInstruments: TDutyInstrument[] = [];
-  const waveInstruments: TWaveInstrument[] = [];
-  const noiseInstruments: TNoiseInstrument[] = [];
+  const dutyInstruments: TDutyInstrument[] = Array.from({ length: 15 }, (_, i) =>
+    createDefaultDutyInstrument(`Duty ${i + 1}`)
+  );
+  const waveInstruments: TWaveInstrument[] = Array.from({ length: 15 }, (_, i) =>
+    createDefaultWaveInstrument(`Wave ${i + 1}`)
+  );
+  const noiseInstruments: TNoiseInstrument[] = Array.from({ length: 15 }, (_, i) =>
+    createDefaultNoiseInstrument(`Noise ${i + 1}`)
+  );
 
   let instCount = 45;
   let instSize = 1385;
@@ -147,10 +153,10 @@ export function parseUgeBuffer(data: ArrayBuffer | Uint8Array): TSong {
       const subpatternEnabled = r.readBool();
       const subpattern = readPatternCells(r, 64, true, false);
 
-      if (type === 0) {
-        dutyInstruments.push({
+      if (i < 15) {
+        dutyInstruments[i] = {
           type: 0,
-          name: instName,
+          name: instName || `Duty ${i + 1}`,
           length,
           lengthEnabled,
           initialVolume,
@@ -162,22 +168,24 @@ export function parseUgeBuffer(data: ArrayBuffer | Uint8Array): TSong {
           duty: Math.min(3, Math.max(0, duty)),
           subpatternEnabled,
           subpattern,
-        });
-      } else if (type === 1) {
-        waveInstruments.push({
+        };
+      } else if (i < 30) {
+        const waveIdx = i - 15;
+        waveInstruments[waveIdx] = {
           type: 1,
-          name: instName,
+          name: instName || `Wave ${waveIdx + 1}`,
           length,
           lengthEnabled,
-          outputLevel: Math.min(3, Math.max(0, outputLevel)),
+          outputLevel: Math.min(3, Math.max(0, outputLevel & 3)),
           waveform: Math.min(15, Math.max(0, waveform)),
           subpatternEnabled,
           subpattern,
-        });
+        };
       } else {
-        noiseInstruments.push({
+        const noiseIdx = i - 30;
+        noiseInstruments[noiseIdx] = {
           type: 2,
-          name: instName,
+          name: instName || `Noise ${noiseIdx + 1}`,
           length,
           lengthEnabled,
           initialVolume,
@@ -187,9 +195,10 @@ export function parseUgeBuffer(data: ArrayBuffer | Uint8Array): TSong {
           noiseMacro: [0, 0, 0, 0, 0, 0],
           subpatternEnabled,
           subpattern,
-        });
+        };
       }
-    } else if (version >= 1 && version <= 5) {
+    } else {
+      // version 1..5
       const initialVolume = r.readUint8();
       const volSweepDirection = (r.readUint32() ? 1 : 0) as 0 | 1;
       const volSweepAmount = r.readUint8();
@@ -207,61 +216,105 @@ export function parseUgeBuffer(data: ArrayBuffer | Uint8Array): TSong {
         for (let m = 0; m < 6; m++) noiseMacro.push(r.readInt8());
       }
 
-      if (type === 0) {
-        dutyInstruments.push({
-          type: 0,
-          name: instName || `Duty ${dutyInstruments.length + 1}`,
-          length,
-          lengthEnabled,
-          initialVolume,
-          volSweepDirection,
-          volSweepAmount,
-          sweepTime,
-          sweepIncDec,
-          sweepShift,
-          duty: Math.min(3, Math.max(0, duty)),
-          subpatternEnabled: false,
-          subpattern: createEmptyPattern(),
-        });
-      } else if (type === 1) {
-        waveInstruments.push({
-          type: 1,
-          name: instName || `Wave ${waveInstruments.length + 1}`,
-          length,
-          lengthEnabled,
-          outputLevel: Math.min(3, Math.max(0, outputLevel || 1)),
-          waveform: Math.min(15, Math.max(0, waveform)),
-          subpatternEnabled: false,
-          subpattern: createEmptyPattern(),
-        });
+      if (version <= 2) {
+        // In v1 and v2 songs, instruments 1..15 are stored in a single 15-entry bank.
+        // In hUGETracker v1, wave output level was: 0=Mute, 1=25%, 2=50%, 3=100%.
+        // Normalizing to modern hUGETracker index: 0=Mute, 1=100%, 2=50%, 3=25%.
+        const normalizedOutputLevel =
+          outputLevel === 3 ? 1 : outputLevel === 1 ? 3 : (outputLevel & 3);
+
+        if (type === 0) {
+          dutyInstruments[i] = {
+            type: 0,
+            name: instName || `Duty ${i + 1}`,
+            length,
+            lengthEnabled,
+            initialVolume,
+            volSweepDirection,
+            volSweepAmount,
+            sweepTime,
+            sweepIncDec,
+            sweepShift,
+            duty: Math.min(3, Math.max(0, duty)),
+            subpatternEnabled: false,
+            subpattern: createEmptyPattern(),
+          };
+        } else if (type === 1) {
+          waveInstruments[i] = {
+            type: 1,
+            name: instName || `Wave ${i + 1}`,
+            length,
+            lengthEnabled,
+            outputLevel: normalizedOutputLevel,
+            waveform: Math.min(15, Math.max(0, waveform)),
+            subpatternEnabled: false,
+            subpattern: createEmptyPattern(),
+          };
+        } else {
+          noiseInstruments[i] = {
+            type: 2,
+            name: instName || `Noise ${i + 1}`,
+            length,
+            lengthEnabled,
+            initialVolume,
+            volSweepDirection,
+            volSweepAmount,
+            counterStep,
+            noiseMacro,
+            subpatternEnabled: false,
+            subpattern: createEmptyPattern(),
+          };
+        }
       } else {
-        noiseInstruments.push({
-          type: 2,
-          name: instName || `Noise ${noiseInstruments.length + 1}`,
-          length,
-          lengthEnabled,
-          initialVolume,
-          volSweepDirection,
-          volSweepAmount,
-          counterStep,
-          noiseMacro,
-          subpatternEnabled: false,
-          subpattern: createEmptyPattern(),
-        });
+        // version 3..5: 45 fixed instrument slots (0..14 Duty, 15..29 Wave, 30..44 Noise)
+        if (i < 15) {
+          dutyInstruments[i] = {
+            type: 0,
+            name: instName || `Duty ${i + 1}`,
+            length,
+            lengthEnabled,
+            initialVolume,
+            volSweepDirection,
+            volSweepAmount,
+            sweepTime,
+            sweepIncDec,
+            sweepShift,
+            duty: Math.min(3, Math.max(0, duty)),
+            subpatternEnabled: false,
+            subpattern: createEmptyPattern(),
+          };
+        } else if (i < 30) {
+          const waveIdx = i - 15;
+          waveInstruments[waveIdx] = {
+            type: 1,
+            name: instName || `Wave ${waveIdx + 1}`,
+            length,
+            lengthEnabled,
+            outputLevel: Math.min(3, Math.max(0, outputLevel & 3)),
+            waveform: Math.min(15, Math.max(0, waveform)),
+            subpatternEnabled: false,
+            subpattern: createEmptyPattern(),
+          };
+        } else {
+          const noiseIdx = i - 30;
+          noiseInstruments[noiseIdx] = {
+            type: 2,
+            name: instName || `Noise ${noiseIdx + 1}`,
+            length,
+            lengthEnabled,
+            initialVolume,
+            volSweepDirection,
+            volSweepAmount,
+            counterStep,
+            noiseMacro,
+            subpatternEnabled: false,
+            subpattern: createEmptyPattern(),
+          };
+        }
       }
     }
 
     r.seek(instStart + instSize);
-  }
-
-  while (dutyInstruments.length < 15) {
-    dutyInstruments.push(createDefaultDutyInstrument(`Duty ${dutyInstruments.length + 1}`));
-  }
-  while (waveInstruments.length < 15) {
-    waveInstruments.push(createDefaultWaveInstrument(`Wave ${waveInstruments.length + 1}`));
-  }
-  while (noiseInstruments.length < 15) {
-    noiseInstruments.push(createDefaultNoiseInstrument(`Noise ${noiseInstruments.length + 1}`));
   }
 
   // Waves

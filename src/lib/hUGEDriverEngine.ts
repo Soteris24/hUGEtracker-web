@@ -222,8 +222,8 @@ export class HUGEDriverEngine {
         }
       }
 
-      // Check note delay effect (7xx): if present, delay note playback until specified tick
-      if (cell.effectCode === 7) {
+      // Check note delay effect (7xx) or tick 0 note cut (E00): if present, suppress immediate note playback
+      if (cell.effectCode === 7 || (cell.effectCode === 0xe && cell.effectParams === 0)) {
         willPlayNote = false;
       }
 
@@ -412,23 +412,45 @@ export class HUGEDriverEngine {
         break;
       }
 
-      // Cxx: Set Volume (tick 0 or subpattern)
+      // Cxx: Set Volume and Envelope (tick 0 or subpattern)
       case 0xc: {
         if (!isTick0 && !fromSubpattern) return;
         const vol = param & 0x0f;
-        this.apu.snd[ch].vol = vol;
+        const envParam = (param >> 4) & 0x0f;
+
         if (ch === 0) {
-          this.apu.write(0xff12, (vol << 4) | (this.apu.regs[0x02] & 0x0f));
-          this.playChannelNote(0);
+          // Hardware envelope bits:
+          // envParam === 0: keep current envelope
+          // envParam === 8: envelope off (step 0)
+          // envParam 1..7: sweep down with step envParam
+          // envParam 9..15: sweep up with step envParam - 8 (bit 3 set)
+          const envBits = envParam === 0 ? (this.apu.regs[0x02] & 0x0f) : (envParam === 8 ? 0 : envParam);
+          this.apu.write(0xff12, (vol << 4) | envBits);
+          // Retrigger with 0x80 so new volume and envelope are applied immediately
+          this.apu.write(0xff14, ((this.channelPeriod[0] >> 8) & 0x07) | this.highmask[0] | 0x80);
+          this.apu.snd[0].vol = vol;
+          this.apu.snd[0].enable = vol > 0 || envBits > 0;
         } else if (ch === 1) {
-          this.apu.write(0xff17, (vol << 4) | (this.apu.regs[0x07] & 0x0f));
-          this.playChannelNote(1);
+          const envBits = envParam === 0 ? (this.apu.regs[0x07] & 0x0f) : (envParam === 8 ? 0 : envParam);
+          this.apu.write(0xff17, (vol << 4) | envBits);
+          this.apu.write(0xff19, ((this.channelPeriod[1] >> 8) & 0x07) | this.highmask[1] | 0x80);
+          this.apu.snd[1].vol = vol;
+          this.apu.snd[1].enable = vol > 0 || envBits > 0;
         } else if (ch === 2) {
+          // CH3 (Wave): Quantize volume down to 4 hardware levels matching hUGEDriver.asm:
+          // >= 10: 100% (level 1 -> 0x20)
+          // >= 5:   50% (level 2 -> 0x40)
+          // > 0:    25% (level 3 -> 0x60)
+          // == 0:  Mute (level 0 -> 0x00)
           const level = vol >= 10 ? 1 : vol >= 5 ? 2 : vol > 0 ? 3 : 0;
           this.apu.write(0xff1c, level << 5);
+          this.apu.snd[2].enable = vol > 0;
         } else if (ch === 3) {
-          this.apu.write(0xff21, (vol << 4) | (this.apu.regs[0x11] & 0x0f));
-          this.playChannelNote(3);
+          const envBits = envParam === 0 ? (this.apu.regs[0x11] & 0x0f) : (envParam === 8 ? 0 : envParam);
+          this.apu.write(0xff21, (vol << 4) | envBits);
+          this.apu.write(0xff23, this.highmask[3] | 0x80);
+          this.apu.snd[3].vol = vol;
+          this.apu.snd[3].enable = vol > 0 || envBits > 0;
         }
         break;
       }
@@ -444,8 +466,25 @@ export class HUGEDriverEngine {
       // Exx: Note Cut
       case 0xe: {
         if (this.currentTick === param) {
-          this.apu.snd[ch].vol = 0;
-          this.apu.snd[ch].enable = false;
+          if (ch === 0) {
+            this.apu.write(0xff12, 0x00);
+            this.apu.write(0xff14, 0x80);
+            this.apu.snd[0].vol = 0;
+            this.apu.snd[0].enable = false;
+          } else if (ch === 1) {
+            this.apu.write(0xff17, 0x00);
+            this.apu.write(0xff19, 0x80);
+            this.apu.snd[1].vol = 0;
+            this.apu.snd[1].enable = false;
+          } else if (ch === 2) {
+            this.apu.write(0xff1c, 0x00);
+            this.apu.snd[2].enable = false;
+          } else if (ch === 3) {
+            this.apu.write(0xff21, 0x00);
+            this.apu.write(0xff23, 0x80);
+            this.apu.snd[3].vol = 0;
+            this.apu.snd[3].enable = false;
+          }
         }
         break;
       }
@@ -463,14 +502,14 @@ export class HUGEDriverEngine {
 
   /**
    * Executes subpattern macro row (`do_table` in hUGEDriver.asm).
-   * Advances row-by-row through the full subpattern (64 rows) unless an explicit jump occurs.
-   * Does NOT cut or loop early on empty rows; wraps only when reaching the subpattern length boundary (64).
+   * Advances row-by-row through the subpattern (32 rows) unless an explicit jump occurs.
+   * In hUGETracker and hUGEDriver.asm, subpatterns strictly loop every 32 rows.
    */
   private doTable(ch: number): void {
     const table = this.tablePtr[ch];
     if (!table || table.length === 0) return;
 
-    const maxLen = Math.min(64, table.length);
+    const maxLen = Math.min(32, table.length);
 
     let rowIdx = this.tableRow[ch];
     if (rowIdx >= maxLen) {
@@ -480,9 +519,9 @@ export class HUGEDriverEngine {
     const cell = table[rowIdx];
     if (!cell) return;
 
-    // Advance to next row or jump target (loops only at length boundary or explicit jump)
+    // Advance to next row or jump target (loops at 32-row boundary or explicit jump)
     if (cell.volume && cell.volume > 0) {
-      // cell.volume is 1-based jump target in hUGETracker (1 = row 0, 2 = row 1...)
+      // cell.volume is 1-based jump target in hUGETracker (1 = row 0, 2 = row 1... 32 = row 31)
       this.tableRow[ch] = Math.max(0, Math.min(maxLen - 1, cell.volume - 1));
     } else {
       this.tableRow[ch] = (rowIdx + 1) % maxLen;
