@@ -101,6 +101,14 @@ export default function App() {
     });
   };
 
+  useEffect(() => {
+    if (colorTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [colorTheme]);
+
   // Cursor in Tracker Grid
   const [cursorRow, setCursorRow] = useState<number>(0);
   const [cursorChannel, setCursorChannel] = useState<number>(0);

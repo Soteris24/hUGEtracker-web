@@ -107,6 +107,14 @@ export class GameBoyApu {
     // Handle register writes
     switch (addr) {
       // Channel 1
+      case 0xff12: {
+        this.snd[0].vol = (val >> 4) & 0x0f;
+        this.snd[0].envCnt = 0;
+        if ((val & 0xf8) === 0) {
+          this.snd[0].enable = false;
+        }
+        break;
+      }
       case 0xff13:
       case 0xff14: {
         this.snd[0].freq = this.regs[0x03] | ((this.regs[0x04] & 0x07) << 8);
@@ -123,6 +131,14 @@ export class GameBoyApu {
       }
 
       // Channel 2
+      case 0xff17: {
+        this.snd[1].vol = (val >> 4) & 0x0f;
+        this.snd[1].envCnt = 0;
+        if ((val & 0xf8) === 0) {
+          this.snd[1].enable = false;
+        }
+        break;
+      }
       case 0xff18:
       case 0xff19: {
         this.snd[1].freq = this.regs[0x08] | ((this.regs[0x09] & 0x07) << 8);
@@ -156,6 +172,14 @@ export class GameBoyApu {
       }
 
       // Channel 4
+      case 0xff21: {
+        this.snd[3].vol = (val >> 4) & 0x0f;
+        this.snd[3].envCnt = 0;
+        if ((val & 0xf8) === 0) {
+          this.snd[3].enable = false;
+        }
+        break;
+      }
       case 0xff22:
       case 0xff23: {
         this.updateNoiseFreq();
@@ -384,12 +408,13 @@ export class GameBoyApu {
       const level = (this.regs[0x0c] >> 5) & 0x03;
       let out = 0;
       if (level > 0) {
+        let centered = sample - 7.5;
         if (level === 2) {
-          sample = sample >> 1; // 50%
+          centered *= 0.5; // 50%
         } else if (level === 3) {
-          sample = sample >> 2; // 25%
+          centered *= 0.25; // 25%
         }
-        out = (sample << 4) - 120; // -120 .. +120
+        out = centered * 16; // -120 .. +120
       }
       if (term & 0x04) rs3 = out;
       if (term & 0x40) ls3 = out;

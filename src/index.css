@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @font-face {
   font-family: 'Pixelite';
   src: url('/fonts/PixeliteTTF.ttf') format('truetype');

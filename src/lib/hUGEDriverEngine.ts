@@ -364,8 +364,9 @@ export class HUGEDriverEngine {
       // 9xx: Set Duty / Timbre (tick 0 or subpattern)
       case 0x9: {
         if (!isTick0 && !fromSubpattern) return;
-        if (ch === 0) this.apu.write(0xff11, param);
-        else if (ch === 1) this.apu.write(0xff16, param);
+        const dutyVal = (param & 0xc0) !== 0 ? param : (param & 3) << 6;
+        if (ch === 0) this.apu.write(0xff11, dutyVal);
+        else if (ch === 1) this.apu.write(0xff16, dutyVal);
         else if (ch === 2) {
           this.loadWaveform(param & 0x0f);
           this.playChannelNote(2);
@@ -404,8 +405,8 @@ export class HUGEDriverEngine {
               this.song.orderMatrix[3]?.length || 1
             )
           : 1;
-        // Bxx jumps to target - 1 (1 order before) with wrap-around / clamping guards
-        this.nextOrder = param > 0 ? (param - 1) % orderCount : 0;
+        // B00 jumps to the next order; B01 jumps to 1st order (idx 0); B02 jumps to 2nd order (idx 1), etc.
+        this.nextOrder = param > 0 ? (param - 1) % orderCount : (this.currentOrder + 1) % orderCount;
         if (this.rowBreak === null) {
           this.rowBreak = 0;
         }
@@ -418,37 +419,37 @@ export class HUGEDriverEngine {
         const vol = param & 0x0f;
         const envParam = (param >> 4) & 0x0f;
 
+        let envBits: number;
+        if (envParam === 0) {
+          // Keep existing instrument/channel envelope bits
+          const currentEnv =
+            ch === 0 ? this.apu.regs[0x02] : ch === 1 ? this.apu.regs[0x07] : this.apu.regs[0x11];
+          envBits = currentEnv & 0x0f;
+        } else if (envParam === 8) {
+          // Envelope off (step 0)
+          envBits = 0;
+        } else {
+          // 1..7: sweep down (dir 0, step envParam) -> bits = envParam
+          // 9..15: sweep up (dir 1, step envParam - 8) -> bits = envParam
+          envBits = envParam;
+        }
+
         if (ch === 0) {
-          // Hardware envelope bits:
-          // envParam === 0: keep current envelope
-          // envParam === 8: envelope off (step 0)
-          // envParam 1..7: sweep down with step envParam
-          // envParam 9..15: sweep up with step envParam - 8 (bit 3 set)
-          const envBits = envParam === 0 ? (this.apu.regs[0x02] & 0x0f) : (envParam === 8 ? 0 : envParam);
           this.apu.write(0xff12, (vol << 4) | envBits);
-          // Retrigger with 0x80 so new volume and envelope are applied immediately
-          this.apu.write(0xff14, ((this.channelPeriod[0] >> 8) & 0x07) | this.highmask[0] | 0x80);
+          this.playChannelNote(0);
           this.apu.snd[0].vol = vol;
           this.apu.snd[0].enable = vol > 0 || envBits > 0;
         } else if (ch === 1) {
-          const envBits = envParam === 0 ? (this.apu.regs[0x07] & 0x0f) : (envParam === 8 ? 0 : envParam);
           this.apu.write(0xff17, (vol << 4) | envBits);
-          this.apu.write(0xff19, ((this.channelPeriod[1] >> 8) & 0x07) | this.highmask[1] | 0x80);
+          this.playChannelNote(1);
           this.apu.snd[1].vol = vol;
           this.apu.snd[1].enable = vol > 0 || envBits > 0;
         } else if (ch === 2) {
-          // CH3 (Wave): Quantize volume down to 4 hardware levels matching hUGEDriver.asm:
-          // >= 10: 100% (level 1 -> 0x20)
-          // >= 5:   50% (level 2 -> 0x40)
-          // > 0:    25% (level 3 -> 0x60)
-          // == 0:  Mute (level 0 -> 0x00)
           const level = vol >= 10 ? 1 : vol >= 5 ? 2 : vol > 0 ? 3 : 0;
           this.apu.write(0xff1c, level << 5);
-          this.apu.snd[2].enable = vol > 0;
         } else if (ch === 3) {
-          const envBits = envParam === 0 ? (this.apu.regs[0x11] & 0x0f) : (envParam === 8 ? 0 : envParam);
           this.apu.write(0xff21, (vol << 4) | envBits);
-          this.apu.write(0xff23, this.highmask[3] | 0x80);
+          this.playChannelNote(3);
           this.apu.snd[3].vol = vol;
           this.apu.snd[3].enable = vol > 0 || envBits > 0;
         }
@@ -521,8 +522,8 @@ export class HUGEDriverEngine {
 
     // Advance to next row or jump target (loops at 32-row boundary or explicit jump)
     if (cell.volume && cell.volume > 0) {
-      // cell.volume is 1-based jump target in hUGETracker (1 = row 0, 2 = row 1... 32 = row 31)
-      this.tableRow[ch] = Math.max(0, Math.min(maxLen - 1, cell.volume - 1));
+      // cell.volume is the 0-based target row in UGE subpatterns (e.g. J03 -> row 3)
+      this.tableRow[ch] = Math.max(0, Math.min(maxLen - 1, cell.volume));
     } else {
       this.tableRow[ch] = (rowIdx + 1) % maxLen;
     }

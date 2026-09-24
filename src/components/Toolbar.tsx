@@ -146,22 +146,30 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </div>
 
         {/* File actions */}
-        <div className="flex items-center gap-1 border-l border-zinc-800 pl-2">
+        <div className={`flex items-center gap-1 border-l pl-2 ${isLight ? 'border-slate-300' : 'border-zinc-800'}`}>
           <button
             onClick={onNewSong}
             title="New Song"
-            className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded transition text-zinc-200 border border-zinc-700"
+            className={`flex items-center gap-1 px-2 py-1 rounded transition border ${
+              isLight
+                ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300'
+                : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 border-zinc-700'
+            }`}
           >
-            <FilePlus className="w-3.5 h-3.5 text-zinc-400" />
+            <FilePlus className={`w-3.5 h-3.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`} />
             <span>New</span>
           </button>
 
           <button
             onClick={() => fileInputRef.current?.click()}
             title="Open .uge file"
-            className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded transition text-zinc-200 border border-zinc-700"
+            className={`flex items-center gap-1 px-2 py-1 rounded transition border ${
+              isLight
+                ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300'
+                : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 border-zinc-700'
+            }`}
           >
-            <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+            <FolderOpen className="w-3.5 h-3.5 text-amber-500" />
             <span>Open .uge</span>
           </button>
           <input
@@ -182,7 +190,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   e.target.value = '';
                 }
               }}
-              className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 border border-zinc-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+              className={`px-2 py-1 rounded border focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer ${
+                isLight
+                  ? 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50'
+                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700'
+              }`}
             >
               <option value="" disabled>
                 Load Demo Song...
@@ -198,30 +210,36 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={onSaveUgeFile}
             title="Save as .uge (v6 binary format)"
-            className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 rounded transition text-zinc-200 border border-zinc-700"
+            className={`flex items-center gap-1 px-2 py-1 rounded transition border ${
+              isLight
+                ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300'
+                : 'bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 border-zinc-700'
+            }`}
           >
-            <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+            <FileDown className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Save .uge</span>
           </button>
 
           <button
             onClick={onOpenGbdkExport}
             title="Export to GBDK C"
-            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-900/60 hover:bg-emerald-800 active:bg-emerald-700 text-emerald-200 rounded transition border border-emerald-600/50 shadow-sm font-medium"
+            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded transition border border-emerald-500 shadow-sm font-medium"
           >
-            <Code2 className="w-3.5 h-3.5 text-emerald-300" />
+            <Code2 className="w-3.5 h-3.5" />
             <span>Export GBDK C</span>
           </button>
         </div>
       </div>
 
       {/* Playback Controls */}
-      <div className="flex items-center gap-1.5 bg-zinc-950 px-2 py-1 rounded border border-zinc-800">
+      <div className={`flex items-center gap-1.5 px-2 py-1 rounded border ${isLight ? 'bg-white border-slate-300' : 'bg-zinc-950 border-zinc-800'}`}>
         <button
           onClick={() => onPlay(false)}
           className={`flex items-center gap-1 px-2.5 py-1 rounded font-medium transition ${
             isPlaying
               ? 'bg-emerald-600 text-white shadow-sm'
+              : isLight
+              ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
               : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
           }`}
           title="Play song from beginning (F5 / Enter)"
@@ -232,25 +250,37 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         <button
           onClick={() => onPlay(true)}
-          className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-200 transition"
+          className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+            isLight
+              ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
+          }`}
           title="Play song from current cursor (F6)"
         >
-          <Play className="w-3.5 h-3.5 text-emerald-400" />
+          <Play className="w-3.5 h-3.5 text-emerald-500" />
           <span>Cursor</span>
         </button>
 
         <button
           onClick={onStop}
-          className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-200 transition"
+          className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+            isLight
+              ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
+          }`}
           title="Stop playback (F8 / Esc)"
         >
-          <Square className="w-3.5 h-3.5 fill-current text-rose-400" />
+          <Square className="w-3.5 h-3.5 fill-current text-rose-500" />
           <span>Stop</span>
         </button>
 
         <button
           onClick={onPanic}
-          className="flex items-center gap-1 px-2 py-1 bg-rose-950/70 hover:bg-rose-900 text-rose-300 rounded border border-rose-800 transition"
+          className={`flex items-center gap-1 px-2 py-1 rounded border transition ${
+            isLight
+              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+              : 'bg-rose-950/70 hover:bg-rose-900 text-rose-300 border-rose-800'
+          }`}
           title="Panic: silence all sound channels immediately"
         >
           <AlertCircle className="w-3.5 h-3.5" />
@@ -258,7 +288,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
 
         {/* Channel Activity Meters */}
-        <div className="flex items-center gap-1 pl-2 border-l border-zinc-800" title="Channel Activity (CH1..CH4)">
+        <div className={`flex items-center gap-1 pl-2 border-l ${isLight ? 'border-slate-300' : 'border-zinc-800'}`} title="Channel Activity (CH1..CH4)">
           {meters.map((meter, ch) => {
             const height = Math.min(100, Math.max(10, Math.round(meter * 100)));
             const color =
@@ -272,7 +302,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             return (
               <div
                 key={ch}
-                className="w-2.5 h-5 bg-zinc-800 rounded-sm overflow-hidden flex flex-col justify-end border border-zinc-700"
+                className={`w-2.5 h-5 rounded-sm overflow-hidden flex flex-col justify-end border ${
+                  isLight ? 'bg-slate-200 border-slate-300' : 'bg-zinc-800 border-zinc-700'
+                }`}
                 title={`CH${ch + 1}`}
               >
                 <div
@@ -289,11 +321,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <div className="flex items-center gap-3">
         {/* Octave */}
         <div className="flex items-center gap-1">
-          <span className="text-zinc-400 font-mono">Octave:</span>
+          <span className={`font-mono ${isLight ? 'text-slate-800 font-semibold' : 'text-zinc-400'}`}>Octave:</span>
           <select
             value={currentOctave}
             onChange={(e) => onOctaveChange(Number(e.target.value))}
-            className="px-1.5 py-0.5 bg-zinc-800 text-zinc-200 rounded border border-zinc-700 font-mono focus:outline-none"
+            className={`px-1.5 py-0.5 rounded border font-mono focus:outline-none ${
+              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-zinc-800 text-zinc-200 border-zinc-700'
+            }`}
           >
             {[3, 4, 5, 6, 7, 8].map((oct) => (
               <option key={oct} value={oct}>
@@ -305,11 +339,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {/* Instrument */}
         <div className="flex items-center gap-1">
-          <span className="text-zinc-400 font-mono">Inst:</span>
+          <span className={`font-mono ${isLight ? 'text-slate-800 font-semibold' : 'text-zinc-400'}`}>Inst:</span>
           <select
             value={currentInstrument}
             onChange={(e) => onInstrumentChange(Number(e.target.value))}
-            className="w-32 px-1.5 py-0.5 bg-zinc-800 text-zinc-200 rounded border border-zinc-700 font-mono focus:outline-none text-ellipsis overflow-hidden"
+            className={`w-32 px-1.5 py-0.5 rounded border font-mono focus:outline-none text-ellipsis overflow-hidden ${
+              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-zinc-800 text-zinc-200 border-zinc-700'
+            }`}
           >
             {Array.from({ length: 15 }, (_, i) => i + 1).map((idx) => (
               <option key={idx} value={idx}>
@@ -321,11 +357,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {/* Step */}
         <div className="flex items-center gap-1">
-          <span className="text-zinc-400 font-mono">Step:</span>
+          <span className={`font-mono ${isLight ? 'text-slate-800 font-semibold' : 'text-zinc-400'}`}>Step:</span>
           <select
             value={currentStep}
             onChange={(e) => onStepChange(Number(e.target.value))}
-            className="px-1.5 py-0.5 bg-zinc-800 text-zinc-200 rounded border border-zinc-700 font-mono focus:outline-none"
+            className={`px-1.5 py-0.5 rounded border font-mono focus:outline-none ${
+              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-zinc-800 text-zinc-200 border-zinc-700'
+            }`}
           >
             {[0, 1, 2, 3, 4, 8, 16].map((s) => (
               <option key={s} value={s}>
@@ -336,8 +374,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </div>
 
         {/* Speed / Ticks per Row & BPM */}
-        <div className="flex items-center gap-1.5 pl-1.5 border-l border-zinc-800">
-          <span className="text-zinc-400 font-mono" title="Ticks per row (Speed)">Ticks:</span>
+        <div className={`flex items-center gap-1.5 pl-1.5 border-l ${isLight ? 'border-slate-300' : 'border-zinc-800'}`}>
+          <span className={`font-mono ${isLight ? 'text-slate-800 font-semibold' : 'text-zinc-400'}`} title="Ticks per row (Speed)">Ticks:</span>
           {onUpdateSong ? (
             <input
               type="number"
@@ -350,28 +388,34 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   onUpdateSong({ ticksPerRow: val });
                 }
               }}
-              className="w-12 px-1 py-0.5 bg-zinc-800 text-amber-300 font-mono text-center rounded border border-zinc-700 focus:outline-none focus:border-amber-500"
+              className={`w-12 px-1 py-0.5 font-mono text-center rounded border focus:outline-none ${
+                isLight
+                  ? 'bg-white text-amber-700 border-slate-300 focus:border-amber-600 font-bold'
+                  : 'bg-zinc-800 text-amber-300 border-zinc-700 focus:border-amber-500'
+              }`}
               title="Change ticks per row"
             />
           ) : (
-            <span className="text-amber-300 font-mono px-1">{song.ticksPerRow}</span>
+            <span className={`font-mono px-1 font-bold ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>{song.ticksPerRow}</span>
           )}
-          <span className="text-[11px] text-zinc-400 font-mono bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-800/80" title="Calculated BPM">
+          <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded border ${
+            isLight ? 'bg-white text-slate-700 border-slate-300' : 'bg-zinc-950 text-zinc-400 border-zinc-800/80'
+          }`} title="Calculated BPM">
             {currentBpm} BPM
           </span>
         </div>
 
         {/* Master Volume */}
-        <div className="flex items-center gap-1.5 pl-2 border-l border-zinc-800">
+        <div className={`flex items-center gap-1.5 pl-2 border-l ${isLight ? 'border-slate-300' : 'border-zinc-800'}`}>
           <button
             onClick={() => onMasterVolumeChange(masterVolume > 0 ? 0 : 0.3)}
             title={masterVolume > 0 ? 'Mute Master' : 'Unmute Master'}
-            className="text-zinc-400 hover:text-zinc-200"
+            className={isLight ? 'text-slate-600 hover:text-slate-900' : 'text-zinc-400 hover:text-zinc-200'}
           >
             {masterVolume > 0 ? (
-              <Volume2 className="w-4 h-4 text-emerald-400" />
+              <Volume2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             ) : (
-              <VolumeX className="w-4 h-4 text-rose-400" />
+              <VolumeX className="w-4 h-4 text-rose-600 dark:text-rose-400" />
             )}
           </button>
           <input
@@ -381,7 +425,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             step="0.05"
             value={masterVolume}
             onChange={(e) => onMasterVolumeChange(parseFloat(e.target.value))}
-            className="w-16 accent-emerald-500 h-1 bg-zinc-700 rounded cursor-pointer"
+            className="w-16 accent-emerald-500 h-1 bg-slate-300 dark:bg-zinc-700 rounded cursor-pointer"
             title={`Volume: ${Math.round(masterVolume * 100)}%`}
           />
         </div>
@@ -393,11 +437,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {onToggleColorTheme && (
           <button
             onClick={onToggleColorTheme}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 rounded font-semibold text-xs transition shadow-sm"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded font-semibold text-xs transition shadow-sm border ${
+              isLight
+                ? 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800'
+                : 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-200'
+            }`}
             title={`Toggle Theme (Current: ${colorTheme === 'light' ? 'Light' : 'Dark'})`}
           >
             {colorTheme === 'light' ? (
-              <Moon className="w-3.5 h-3.5 text-indigo-400" />
+              <Moon className="w-3.5 h-3.5 text-indigo-600" />
             ) : (
               <Sun className="w-3.5 h-3.5 text-amber-400" />
             )}

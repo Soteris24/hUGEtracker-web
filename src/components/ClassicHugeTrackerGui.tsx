@@ -1622,11 +1622,11 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
           <span>Panic</span>
         </button>
 
-        <div className="h-4 w-px bg-gray-300 dark:bg-zinc-700 mx-0.5" />
+        <div className={`h-4 w-px mx-0.5 ${isLight ? 'bg-gray-400' : 'bg-zinc-700'}`} />
 
         {/* Octave Spinner */}
         <div className="flex items-center gap-1 text-xs">
-          <span className="font-semibold text-gray-700 dark:text-gray-300">Octave</span>
+          <span className={`font-semibold ${isLight ? 'text-black' : 'text-zinc-200'}`}>Octave</span>
           <input
             type="number"
             min={0}
@@ -1641,7 +1641,7 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
 
         {/* Instrument Selector */}
         <div className="flex items-center gap-1 text-xs">
-          <span className="font-semibold text-gray-700 dark:text-gray-300">Instrument</span>
+          <span className={`font-semibold ${isLight ? 'text-black' : 'text-zinc-200'}`}>Instrument</span>
           <select
             value={currentInstrument}
             onChange={(e) => onInstrumentChange(Number(e.target.value))}
@@ -1660,7 +1660,7 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
 
         {/* Step Spinner */}
         <div className="flex items-center gap-1 text-xs">
-          <span className="font-semibold text-gray-700 dark:text-gray-300">Step</span>
+          <span className={`font-semibold ${isLight ? 'text-black' : 'text-zinc-200'}`}>Step</span>
           <input
             type="number"
             min={0}
@@ -1671,6 +1671,34 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
               isLight ? 'bg-white border-[#7f9db9] text-black' : 'bg-zinc-900 border-zinc-700 text-white'
             }`}
           />
+        </div>
+
+        {/* Master Volume Slider */}
+        <div className={`flex items-center gap-1.5 px-2 border-l border-r ${isLight ? 'border-gray-400' : 'border-zinc-700'}`}>
+          <button
+            onClick={() => onMasterVolumeChange(masterVolume > 0 ? 0 : 0.3)}
+            title={masterVolume > 0 ? 'Mute Audio' : 'Unmute Audio'}
+            className={isLight ? 'text-slate-700 hover:text-black' : 'text-zinc-400 hover:text-zinc-200'}
+          >
+            {masterVolume > 0 ? (
+              <Volume2 className={`w-3.5 h-3.5 ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`} />
+            ) : (
+              <VolumeX className={`w-3.5 h-3.5 ${isLight ? 'text-rose-700' : 'text-rose-400'}`} />
+            )}
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={masterVolume}
+            onChange={(e) => onMasterVolumeChange(parseFloat(e.target.value))}
+            className={`w-16 accent-emerald-500 h-1 rounded cursor-pointer ${isLight ? 'bg-gray-300' : 'bg-zinc-700'}`}
+            title={`Master Volume: ${Math.round(masterVolume * 100)}%`}
+          />
+          <span className={`text-[10px] font-mono font-bold w-7 ${isLight ? 'text-black' : 'text-zinc-300'}`}>
+            {Math.round(masterVolume * 100)}%
+          </span>
         </div>
 
         {/* Right side: Theme toggle, Options shortcut & PWA */}
@@ -2933,7 +2961,7 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
                     }
 
                     const instStr = cell.instrument > 0 ? cell.instrument.toString(16).toUpperCase().padStart(2, '0') : '..';
-                    const jumpStr = cell.volume > 0 ? `J${(cell.volume - 1).toString().padStart(2, '0')}` : '...';
+                    const jumpStr = cell.volume > 0 ? `J${cell.volume.toString().padStart(2, '0')}` : '...';
                     const effCodeStr = cell.effectCode > 0 ? cell.effectCode.toString(16).toUpperCase() : '.';
                     const effParamStr =
                       cell.effectCode > 0 || cell.effectParams > 0
@@ -2970,15 +2998,17 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
                             setSubCol(0);
                           }}
                           className={`truncate ${
-                            isCurSubRow && subCol === 0
-                              ? 'underline font-black'
+                            isCurSubRow
+                              ? subCol === 0
+                                ? 'text-white underline font-black'
+                                : 'text-white'
                               : cell.note !== NO_NOTE
                               ? isLight
                                 ? 'text-[#002266] font-bold'
                                 : 'text-amber-300 font-bold'
                               : isLight
-                              ? 'text-gray-400'
-                              : 'text-zinc-600'
+                              ? 'text-gray-500'
+                              : 'text-zinc-500'
                           }`}
                         >
                           {transposeStr}
@@ -2992,15 +3022,17 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
                             setSubCol(1);
                           }}
                           className={`text-center ${
-                            isCurSubRow && subCol === 1
-                              ? 'underline font-black'
+                            isCurSubRow
+                              ? subCol === 1
+                                ? 'text-white underline font-black'
+                                : 'text-white'
                               : cell.instrument > 0
                               ? isLight
                                 ? 'text-[#660000] font-bold'
                                 : 'text-emerald-400 font-bold'
                               : isLight
-                              ? 'text-gray-400'
-                              : 'text-zinc-600'
+                              ? 'text-gray-500'
+                              : 'text-zinc-500'
                           }`}
                         >
                           {instStr}
@@ -3014,15 +3046,17 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
                             setSubCol(2);
                           }}
                           className={`text-center ${
-                            isCurSubRow && subCol === 2
-                              ? 'underline font-black'
+                            isCurSubRow
+                              ? subCol === 2
+                                ? 'text-white underline font-black'
+                                : 'text-white'
                               : cell.volume > 0
                               ? isLight
                                 ? 'text-[#005500] font-bold'
                                 : 'text-cyan-400 font-bold'
                               : isLight
-                              ? 'text-gray-400'
-                              : 'text-zinc-600'
+                              ? 'text-gray-500'
+                              : 'text-zinc-500'
                           }`}
                         >
                           {jumpStr}
@@ -3036,8 +3070,10 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
                             setSubCol(3);
                           }}
                           className={`text-right ${
-                            isCurSubRow && (subCol === 3 || subCol === 4)
-                              ? 'underline font-black'
+                            isCurSubRow
+                              ? subCol === 3 || subCol === 4
+                                ? 'text-white underline font-black'
+                                : 'text-white'
                               : getEffectColor(cell.effectCode, isLight)
                           }`}
                         >
