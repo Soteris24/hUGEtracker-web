@@ -33,8 +33,7 @@ export const RenderSongModal: React.FC<RenderSongModalProps> = ({
 
     try {
       const renderResult = await renderSongToWav(song, {
-        loopCount: loops,
-        sampleRate,
+        sampleRate: 44100,
         onProgress: (p, text) => {
           setProgress(p);
           setStatusText(text);
@@ -120,53 +119,14 @@ export const RenderSongModal: React.FC<RenderSongModalProps> = ({
               </div>
             </div>
             <div className="text-right font-mono text-[11px] text-blue-600 dark:text-blue-400 font-bold">
-              16-bit PCM
+              44.1 kHz • 16-bit Stereo
             </div>
           </div>
 
           {!result && !isRendering && (
-            <div className="flex flex-col gap-3">
-              <fieldset
-                className={`border p-3 rounded-[2px] flex flex-col gap-3 ${
-                  isLight ? 'border-[#abb7bc]' : 'border-zinc-700'
-                }`}
-              >
-                <legend className="px-1 font-bold text-xs">Render Settings</legend>
-
-                {/* Loops */}
-                <div className="grid grid-cols-[110px_1fr] items-center gap-2">
-                  <span className="font-semibold text-xs">Song Loops:</span>
-                  <select
-                    value={loops}
-                    onChange={(e) => setLoops(Number(e.target.value))}
-                    className={`px-2 py-1 border text-xs font-semibold rounded-[2px] ${
-                      isLight ? 'bg-white border-[#7f9db9]' : 'bg-zinc-800 border-zinc-700'
-                    }`}
-                  >
-                    <option value={1}>1 Loop (Single Playthrough + End Fade)</option>
-                    <option value={2}>2 Loops (Game Soundtrack Style)</option>
-                    <option value={3}>3 Loops (Extended)</option>
-                  </select>
-                </div>
-
-                {/* Sample Rate */}
-                <div className="grid grid-cols-[110px_1fr] items-center gap-2">
-                  <span className="font-semibold text-xs">Sample Rate:</span>
-                  <select
-                    value={sampleRate}
-                    onChange={(e) => setSampleRate(Number(e.target.value))}
-                    className={`px-2 py-1 border text-xs font-semibold rounded-[2px] ${
-                      isLight ? 'bg-white border-[#7f9db9]' : 'bg-zinc-800 border-zinc-700'
-                    }`}
-                  >
-                    <option value={44100}>44,100 Hz (CD Audio Quality)</option>
-                    <option value={48000}>48,000 Hz (Video / Broadcast Quality)</option>
-                  </select>
-                </div>
-              </fieldset>
-
-              <p className="text-[11px] text-gray-500 dark:text-zinc-400 leading-normal">
-                Audio is synthesized directly from the Game Boy APU emulator at high precision, rendering all 4 channels (Pulse 1, Pulse 2, 4-bit Wavetable, and LFSR Noise) into uncompressed stereo WAV audio.
+            <div className="flex flex-col gap-2">
+              <p className="text-[11px] text-gray-600 dark:text-zinc-300 leading-normal">
+                Exports 1 complete, clean playthrough of the song directly from the Game Boy APU sound engine to standard 16-bit 44.1 kHz stereo WAV audio without loops or fadeouts.
               </p>
             </div>
           )}

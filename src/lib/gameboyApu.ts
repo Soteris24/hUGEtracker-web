@@ -72,9 +72,10 @@ export class GameBoyApu {
     this.write(0xff26, 0xf1);
 
     for (let i = 0; i < 4; i++) {
+      const isOff = this.snd[i]?.channelOff ?? false;
       this.snd[i] = {
         enable: false,
-        channelOff: false,
+        channelOff: isOff,
         vol: 0,
         len: 0,
         cnt: 0,

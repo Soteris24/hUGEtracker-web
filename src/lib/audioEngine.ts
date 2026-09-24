@@ -72,17 +72,36 @@ class AudioEngine {
     }
   }
 
+  private mutedChannels: boolean[] = [false, false, false, false];
+  private soloChannels: boolean[] = [false, false, false, false];
+
   public setChannelMute(channel: number, isMuted: boolean): void {
-    this.apu.snd[channel].channelOff = isMuted;
+    this.mutedChannels[channel] = isMuted;
+    this.applyMuteSolo();
+  }
+
+  public setMutedChannels(muted: boolean[]): void {
+    this.mutedChannels = [...muted];
+    this.applyMuteSolo();
   }
 
   public setChannelSolo(channel: number, isSolo: boolean): void {
+    this.soloChannels[channel] = isSolo;
+    this.applyMuteSolo();
+  }
+
+  public setSoloChannels(solo: boolean[]): void {
+    this.soloChannels = [...solo];
+    this.applyMuteSolo();
+  }
+
+  public applyMuteSolo(): void {
+    const hasSolo = this.soloChannels.some((s) => s);
     for (let i = 0; i < 4; i++) {
-      if (isSolo) {
-        this.apu.snd[i].channelOff = i !== channel;
-      } else {
-        this.apu.snd[i].channelOff = false;
-      }
+      const isAudible = hasSolo
+        ? (this.soloChannels[i] && !this.mutedChannels[i])
+        : !this.mutedChannels[i];
+      this.apu.snd[i].channelOff = !isAudible;
     }
   }
 
@@ -90,6 +109,7 @@ class AudioEngine {
     this.init();
     this.samplesUntilNextTick = 0;
     this.driver.start(startOrder, startRow);
+    this.applyMuteSolo();
     this.notifyState();
   }
 
@@ -104,6 +124,7 @@ class AudioEngine {
   public panic(): void {
     this.driver.stop();
     this.apu.reset();
+    this.applyMuteSolo();
     this.notifyState();
     if (this.onMeterChange) {
       this.onMeterChange([0, 0, 0, 0]);
@@ -220,10 +241,10 @@ class AudioEngine {
     this.uiUpdateCounter++;
     this.notifyState();
     if (this.onMeterChange) {
-      const m1 = this.apu.snd[0].enable ? this.apu.snd[0].vol / 15 : 0;
-      const m2 = this.apu.snd[1].enable ? this.apu.snd[1].vol / 15 : 0;
-      const m3 = this.apu.snd[2].enable ? 0.8 : 0;
-      const m4 = this.apu.snd[3].enable ? this.apu.snd[3].vol / 15 : 0;
+      const m1 = this.apu.snd[0].enable && !this.apu.snd[0].channelOff ? this.apu.snd[0].vol / 15 : 0;
+      const m2 = this.apu.snd[1].enable && !this.apu.snd[1].channelOff ? this.apu.snd[1].vol / 15 : 0;
+      const m3 = this.apu.snd[2].enable && !this.apu.snd[2].channelOff ? 0.8 : 0;
+      const m4 = this.apu.snd[3].enable && !this.apu.snd[3].channelOff ? this.apu.snd[3].vol / 15 : 0;
       this.onMeterChange([m1, m2, m3, m4]);
     }
   }

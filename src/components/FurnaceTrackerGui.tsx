@@ -33,7 +33,7 @@ import {
   TNoiseInstrument,
   createEmptyPattern,
 } from '../types/uge';
-import { PlaybackState } from '../lib/audioEngine';
+import { audioEngine, PlaybackState } from '../lib/audioEngine';
 import { PWAInstallButton } from './PWAInstallButton';
 import { EFFECT_INFO } from './EffectEditorModal';
 
@@ -227,37 +227,119 @@ export const FurnaceTrackerGui: React.FC<FurnaceTrackerGuiProps> = ({
         ctx.stroke();
 
         const meter = meters[ch] || 0;
-        const isMuted = mutedChannels[ch];
+        const hasSolo = soloChannels.some(Boolean);
+        const isAudible = hasSolo ? (soloChannels[ch] && !mutedChannels[ch]) : !mutedChannels[ch];
+        const apu = audioEngine.apu;
+        const chSound = apu ? apu.snd[ch] : null;
+        const isSoundActive = isAudible && ((playbackState.isPlaying && meter > 0.015) || (chSound?.enable && chSound.vol > 0));
 
         // Channel colors matching Furnace theme
         const colors = isLight
           ? ['#0284c7', '#16a34a', '#d97706', '#9333ea']
           : ['#38bdf8', '#4ade80', '#facc15', '#c084fc'];
 
-        if (playbackState.isPlaying && meter > 0.02 && !isMuted) {
+        if (isSoundActive && apu) {
           ctx.strokeStyle = colors[ch];
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1.75;
           ctx.beginPath();
-          const freq = (ch === 2 ? 14 : ch === 3 ? 30 : 8) + ch * 4;
-          const phase = (Date.now() / 50) * (ch + 1);
-          for (let x = 0; x < width; x++) {
-            const normX = x / width;
-            let y = height / 2;
-            if (ch === 3) {
-              // Noise: pseudo random LFSR jitter
-              y += (Math.random() - 0.5) * meter * height * 0.85;
-            } else if (ch === 2) {
-              // Wave: smooth waveform interpolation
-              y += Math.sin(normX * freq + phase) * meter * height * 0.45;
-            } else {
-              // Pulse: square duty step
-              const pulse = (normX * freq + phase) % 1;
-              y += (pulse < 0.5 ? -1 : 1) * meter * height * 0.4;
+
+          const amp = Math.min(1, Math.max(0.25, ((chSound?.vol || 12) / 15) * 0.85 + meter * 0.35)) * (height * 0.42);
+
+          if (ch === 0 || ch === 1) {
+            // Pulse 1 & Pulse 2: Actual Game Boy Hardware Duty Cycle (Stationary & Centered)
+            const regIdx = ch === 0 ? 1 : 6;
+            const dutyBits = (apu.regs[regIdx] >> 6) & 3;
+            const dutyRatios = [0.125, 0.25, 0.50, 0.75];
+            const dutyRatio = dutyRatios[dutyBits] ?? 0.5;
+
+            const numPeriods = 3;
+            let prevHigh: boolean | null = null;
+            for (let x = 0; x < width; x++) {
+              const normX = x / width;
+              const cyclePhase = (normX * numPeriods) % 1;
+              const isHigh = cyclePhase >= (1 - dutyRatio) / 2 && cyclePhase < (1 + dutyRatio) / 2;
+              const y = height / 2 + (isHigh ? -amp : amp);
+
+              if (x === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                if (prevHigh !== null && prevHigh !== isHigh) {
+                  const prevY = height / 2 + (prevHigh ? -amp : amp);
+                  ctx.lineTo(x, prevY);
+                  ctx.lineTo(x, y);
+                } else {
+                  ctx.lineTo(x, y);
+                }
+              }
+              prevHigh = isHigh;
             }
-            if (x === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+            ctx.stroke();
+
+          } else if (ch === 2) {
+            // Wave Synthesizer: Actual 32 4-bit Samples from APU Wave RAM (Stationary & Centered)
+            const waveSamples: number[] = [];
+            let hasSamples = false;
+            for (let b = 0; b < 16; b++) {
+              const byte = apu.regs[0x20 + b] || 0;
+              const hi = (byte >> 4) & 0x0f;
+              const lo = byte & 0x0f;
+              waveSamples.push(hi, lo);
+              if (hi > 0 || lo > 0) hasSamples = true;
+            }
+            const activeSamples = hasSamples ? waveSamples : (song.waves[selectedWaveIndex] || Array(32).fill(8));
+
+            const numPeriods = 2;
+            let prevSampleIdx = -1;
+            for (let x = 0; x < width; x++) {
+              const normX = x / width;
+              const cyclePhase = (normX * numPeriods) % 1;
+              const sampleIdx = Math.floor(cyclePhase * 32);
+              const sampleVal = activeSamples[sampleIdx] ?? 8;
+              const normVal = (sampleVal - 7.5) / 7.5;
+              const y = height / 2 - normVal * amp;
+
+              if (x === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                if (prevSampleIdx !== -1 && prevSampleIdx !== sampleIdx) {
+                  const prevVal = (activeSamples[prevSampleIdx] - 7.5) / 7.5;
+                  const prevY = height / 2 - prevVal * amp;
+                  ctx.lineTo(x, prevY);
+                  ctx.lineTo(x, y);
+                } else {
+                  ctx.lineTo(x, y);
+                }
+              }
+              prevSampleIdx = sampleIdx;
+            }
+            ctx.stroke();
+
+          } else {
+            // Noise: Authentic Pseudo-Random Noise from LFSR (Stationary & Centered)
+            const is7bit = ((apu.regs[0x12] || 0) & 0x08) !== 0;
+
+            let prevNoiseBit: number | null = null;
+            for (let x = 0; x < width; x++) {
+              const step = Math.floor((x / width) * 48);
+              const noiseBit = (step % 2 === 0 ? 1 : -1) * (Math.sin(step * 12.9898 + (is7bit ? 7 : 15)) > 0 ? 1 : -1);
+              const y = height / 2 + noiseBit * amp * 0.9;
+
+              if (x === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                if (prevNoiseBit !== null && prevNoiseBit !== noiseBit) {
+                  const prevY = height / 2 + prevNoiseBit * amp * 0.9;
+                  ctx.lineTo(x, prevY);
+                  ctx.lineTo(x, y);
+                } else {
+                  ctx.lineTo(x, y);
+                }
+              }
+              prevNoiseBit = noiseBit;
+            }
+            ctx.stroke();
           }
-          ctx.stroke();
+
         } else {
           // Idle line
           ctx.strokeStyle = isLight ? '#4a5568' : '#2d3748';
@@ -272,7 +354,7 @@ export const FurnaceTrackerGui: React.FC<FurnaceTrackerGuiProps> = ({
     };
     animId = requestAnimationFrame(drawScopes);
     return () => cancelAnimationFrame(animId);
-  }, [meters, playbackState.isPlaying, mutedChannels, isLight]);
+  }, [meters, playbackState.isPlaying, mutedChannels, soloChannels, isLight]);
 
   // Waveform canvas rendering
   const currentWaveSamples = song.waves[selectedWaveIndex] || Array(32).fill(0);

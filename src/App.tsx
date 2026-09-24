@@ -303,14 +303,14 @@ export default function App() {
     const next = [...mutedChannels];
     next[ch] = !next[ch];
     setMutedChannels(next);
-    audioEngine.setChannelMute(ch, next[ch]);
+    audioEngine.setMutedChannels(next);
   };
 
   const handleToggleSolo = (ch: number) => {
     const next = [...soloChannels];
     next[ch] = !next[ch];
     setSoloChannels(next);
-    audioEngine.setChannelSolo(ch, next[ch]);
+    audioEngine.setSoloChannels(next);
   };
 
   // Note preview

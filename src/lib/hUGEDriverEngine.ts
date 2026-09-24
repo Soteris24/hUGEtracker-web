@@ -420,10 +420,12 @@ export class HUGEDriverEngine {
         const envParam = (param >> 4) & 0x0f;
 
         let envBits: number;
-        if (envParam === 0) {
-          // Keep existing instrument/channel envelope bits
-          const currentEnv =
-            ch === 0 ? this.apu.regs[0x02] : ch === 1 ? this.apu.regs[0x07] : this.apu.regs[0x11];
+        if (ch === 3) {
+          // On CH4 (Noise), Cxx disables the envelope sweep (creates sustain/fixed volume) unless an envelope is specified
+          envBits = envParam !== 0 && envParam !== 8 ? envParam : 0;
+        } else if (envParam === 0) {
+          // Keep existing instrument/channel envelope bits on pulse channels
+          const currentEnv = ch === 0 ? this.apu.regs[0x02] : this.apu.regs[0x07];
           envBits = currentEnv & 0x0f;
         } else if (envParam === 8) {
           // Envelope off (step 0)

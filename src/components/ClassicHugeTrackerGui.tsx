@@ -505,36 +505,34 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
         ctx.stroke();
 
         const meter = meters[ch] || 0;
-        const isMuted = mutedChannels[ch];
+        const hasSolo = soloChannels.some(Boolean);
+        const isAudible = hasSolo ? (soloChannels[ch] && !mutedChannels[ch]) : !mutedChannels[ch];
         const apu = audioEngine.apu;
         const chSound = apu ? apu.snd[ch] : null;
-        const isSoundActive = (playbackState.isPlaying && meter > 0.015 && !isMuted) || (chSound?.enable && chSound.vol > 0 && !isMuted);
+        const isSoundActive = isAudible && ((playbackState.isPlaying && meter > 0.015) || (chSound?.enable && chSound.vol > 0));
 
         if (isSoundActive && apu) {
           ctx.strokeStyle = '#4af682';
           ctx.lineWidth = 1.75;
           ctx.beginPath();
 
-          const timeOffset = Date.now() / 1000;
           const amp = Math.min(1, Math.max(0.25, ((chSound?.vol || 12) / 15) * 0.85 + meter * 0.35)) * (height * 0.42);
 
           if (ch === 0 || ch === 1) {
-            // Pulse 1 & Pulse 2: Actual Game Boy Hardware Duty Cycle
+            // Pulse 1 & Pulse 2: Actual Game Boy Hardware Duty Cycle (Stationary & Centered)
             const regIdx = ch === 0 ? 1 : 6;
             const dutyBits = (apu.regs[regIdx] >> 6) & 3;
             // GB Duty: 0 = 12.5%, 1 = 25%, 2 = 50%, 3 = 75%
             const dutyRatios = [0.125, 0.25, 0.50, 0.75];
             const dutyRatio = dutyRatios[dutyBits] ?? 0.5;
 
-            const rawFreq = Math.max(100, Math.min(2040, chSound?.freq || 1500));
-            const numPeriods = 3 + ((rawFreq - 100) / 1940) * 5;
-            const phaseShift = (timeOffset * (rawFreq / 140)) % 1;
-
+            const numPeriods = 3;
             let prevHigh: boolean | null = null;
             for (let x = 0; x < width; x++) {
               const normX = x / width;
-              const cyclePhase = (normX * numPeriods + phaseShift) % 1;
-              const isHigh = cyclePhase < dutyRatio;
+              const cyclePhase = (normX * numPeriods) % 1;
+              // Center the pulse symmetrically within each period
+              const isHigh = cyclePhase >= (1 - dutyRatio) / 2 && cyclePhase < (1 + dutyRatio) / 2;
               const y = height / 2 + (isHigh ? -amp : amp);
 
               if (x === 0) {
@@ -553,7 +551,7 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
             ctx.stroke();
 
           } else if (ch === 2) {
-            // Wave Synthesizer: Actual 32 4-bit Samples from APU Wave RAM registers 0x20..0x2F
+            // Wave Synthesizer: Actual 32 4-bit Samples from APU Wave RAM registers 0x20..0x2F (Stationary & Centered)
             const waveSamples: number[] = [];
             let hasSamples = false;
             for (let b = 0; b < 16; b++) {
@@ -565,14 +563,11 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
             }
             const activeSamples = hasSamples ? waveSamples : (song.waves[selectedWaveIndex] || Array(32).fill(8));
 
-            const rawFreq = Math.max(100, Math.min(2040, chSound?.freq || 1400));
-            const numPeriods = 2.5 + ((rawFreq - 100) / 1940) * 4.5;
-            const phaseShift = (timeOffset * (rawFreq / 140)) % 1;
-
+            const numPeriods = 2;
             let prevSampleIdx = -1;
             for (let x = 0; x < width; x++) {
               const normX = x / width;
-              const cyclePhase = (normX * numPeriods + phaseShift) % 1;
+              const cyclePhase = (normX * numPeriods) % 1;
               const sampleIdx = Math.floor(cyclePhase * 32);
               const sampleVal = activeSamples[sampleIdx] ?? 8;
               const normVal = (sampleVal - 7.5) / 7.5;
@@ -595,14 +590,12 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
             ctx.stroke();
 
           } else {
-            // Noise: Authentic Pseudo-Random Noise from LFSR
+            // Noise: Authentic Pseudo-Random Noise from LFSR (Stationary & Centered)
             const is7bit = ((apu.regs[0x12] || 0) & 0x08) !== 0;
-            const speed = Math.max(1, 16 - ((apu.regs[0x12] || 0) >> 4));
-            const shiftPhase = Math.floor(timeOffset * 60 * speed);
 
             let prevNoiseBit: number | null = null;
             for (let x = 0; x < width; x++) {
-              const step = Math.floor((x / width) * 48 + shiftPhase);
+              const step = Math.floor((x / width) * 48);
               const noiseBit = (step % 2 === 0 ? 1 : -1) * (Math.sin(step * 12.9898 + (is7bit ? 7 : 15)) > 0 ? 1 : -1);
               const y = height / 2 + noiseBit * amp * 0.9;
 
@@ -635,7 +628,7 @@ export const ClassicHugeTrackerGui: React.FC<ClassicHugeTrackerGuiProps> = ({
     };
     animId = requestAnimationFrame(drawScopes);
     return () => cancelAnimationFrame(animId);
-  }, [meters, playbackState.isPlaying, mutedChannels, options.showScopes]);
+  }, [meters, playbackState.isPlaying, mutedChannels, soloChannels, options.showScopes]);
 
   // Waveform canvas rendering & interactive drawing
   const currentWaveSamples = song.waves[selectedWaveIndex] || Array(32).fill(0);

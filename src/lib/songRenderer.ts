@@ -173,15 +173,6 @@ export async function renderSongToWav(
     copyOffset += leftChunks[i].length;
   }
 
-  // Apply a clean 1.5-second fade out at the end
-  const fadeSamples = Math.min(Math.floor(sampleRate * 1.5), totalSamplesRendered);
-  const fadeStart = totalSamplesRendered - fadeSamples;
-  for (let i = 0; i < fadeSamples; i++) {
-    const mult = 1 - i / fadeSamples;
-    finalL[fadeStart + i] *= mult;
-    finalR[fadeStart + i] *= mult;
-  }
-
   if (onProgress) {
     onProgress(1.0, 'Encoding 16-bit Stereo WAV...');
   }
